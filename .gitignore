@@ -2,3 +2,5 @@
 build
 .kotlin
 .idea
+generated
+gradle.properties.local
