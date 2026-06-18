@@ -5,7 +5,9 @@ import io.github.zhangwanly.jimmer.quickgen.config.QuickGenConfig;
 import io.github.zhangwanly.jimmer.quickgen.db.DatabaseIntrospector;
 import io.github.zhangwanly.jimmer.quickgen.db.TableModel;
 import io.github.zhangwanly.jimmer.quickgen.dialect.Dialect;
+import io.github.zhangwanly.jimmer.quickgen.dialect.DialectFactory;
 import io.github.zhangwanly.jimmer.quickgen.output.OutputWriter;
+import io.github.zhangwanly.jimmer.quickgen.output.WarningReportWriter;
 import com.squareup.javapoet.JavaFile;
 
 import javax.sql.DataSource;
@@ -37,7 +39,7 @@ public final class QuickGen {
      */
     public static List<JavaFile> generate(DataSource dataSource, QuickGenConfig config) {
         // Step 0: Detect database dialect and apply type mappings
-        Dialect dialect = Dialect.detect(dataSource);
+        Dialect dialect = DialectFactory.detect(dataSource);
         dialect.applyTypeMappings(config.typeMappingRegistry());
 
         // Step 1: Introspect database (tables, columns, PKs — no FKs)
@@ -54,7 +56,7 @@ public final class QuickGen {
 
         // Step 4: Write schema validation warnings (if any)
         if (result.schema().hasWarnings()) {
-            writer.writeWarnings(result.schema().warnings(), config.outputDir());
+            new WarningReportWriter().writeWarnings(result.schema().warnings(), config.outputDir());
         }
 
         return result.files();

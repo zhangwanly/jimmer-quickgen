@@ -20,46 +20,46 @@ class DialectTest {
 
     @Test
     void fromProductName_mysql() {
-        Dialect dialect = Dialect.fromProductName("MySQL");
+        Dialect dialect = DialectFactory.fromProductName("MySQL");
         assertEquals("MySQL", dialect.name());
         assertInstanceOf(MysqlDialect.class, dialect);
     }
 
     @Test
     void fromProductName_mysqlCaseInsensitive() {
-        Dialect dialect = Dialect.fromProductName("mysql 8.0");
+        Dialect dialect = DialectFactory.fromProductName("mysql 8.0");
         assertEquals("MySQL", dialect.name());
     }
 
     @Test
     void fromProductName_postgresql() {
-        Dialect dialect = Dialect.fromProductName("PostgreSQL");
+        Dialect dialect = DialectFactory.fromProductName("PostgreSQL");
         assertEquals("PostgreSQL", dialect.name());
         assertInstanceOf(PostgresDialect.class, dialect);
     }
 
     @Test
     void fromProductName_postgresShortName() {
-        Dialect dialect = Dialect.fromProductName("Postgres");
+        Dialect dialect = DialectFactory.fromProductName("Postgres");
         assertEquals("PostgreSQL", dialect.name());
     }
 
     @Test
     void fromProductName_h2ReturnsGeneric() {
-        Dialect dialect = Dialect.fromProductName("H2");
+        Dialect dialect = DialectFactory.fromProductName("H2");
         assertEquals("Generic", dialect.name());
         assertInstanceOf(GenericDialect.class, dialect);
     }
 
     @Test
     void fromProductName_unknownReturnsGeneric() {
-        Dialect dialect = Dialect.fromProductName("SQLite");
+        Dialect dialect = DialectFactory.fromProductName("SQLite");
         assertEquals("Generic", dialect.name());
     }
 
     @Test
     void fromProductName_nullReturnsGeneric() {
-        Dialect dialect = Dialect.fromProductName(null);
+        Dialect dialect = DialectFactory.fromProductName(null);
         assertEquals("Generic", dialect.name());
     }
 

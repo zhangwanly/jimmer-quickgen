@@ -30,23 +30,27 @@ public final class SchemaAnalyzer {
     private final BaseEntityExtractionStrategy baseEntityExtractor;
     private final JoinTableDetectionStrategy joinTableDetector;
     private final AssociationResolverStrategy associationResolver;
+    private final SchemaValidationStrategy schemaValidator;
 
     public SchemaAnalyzer(QuickGenConfig config) {
         this(config,
              new BaseEntityExtractor(),
              new JoinTableDetector(config.joinTableConfig(), config.tableRefOverrides()),
-             new ConventionAssociationResolver()
+             new ConventionAssociationResolver(),
+             new SchemaValidator(config.schemaValidatorConfig())
         );
     }
 
     public SchemaAnalyzer(QuickGenConfig config,
                           BaseEntityExtractionStrategy baseEntityExtractor,
                           JoinTableDetectionStrategy joinTableDetector,
-                          AssociationResolverStrategy associationResolver) {
+                          AssociationResolverStrategy associationResolver,
+                          SchemaValidationStrategy schemaValidator) {
         this.config = config;
         this.baseEntityExtractor = baseEntityExtractor;
         this.joinTableDetector = joinTableDetector;
         this.associationResolver = associationResolver;
+        this.schemaValidator = schemaValidator;
     }
 
     /**
@@ -97,8 +101,7 @@ public final class SchemaAnalyzer {
                 nonJoinTables, baseResult, baseColumnNames, associationMap);
 
         // Step 7: Validate schema for unresolved _id columns
-        SchemaValidator validator = new SchemaValidator(config);
-        List<SchemaWarning> warnings = validator.validate(
+        List<SchemaWarning> warnings = schemaValidator.validate(
                 nonJoinTables, baseColumnNames, associationMap, allTableNames);
 
         return new AnalyzedSchema(

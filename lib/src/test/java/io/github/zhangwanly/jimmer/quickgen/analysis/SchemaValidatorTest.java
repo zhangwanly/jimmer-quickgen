@@ -21,7 +21,7 @@ class SchemaValidatorTest {
         ), Set.of("id"));
 
         QuickGenConfig config = QuickGenConfig.builder().build();
-        SchemaValidator validator = new SchemaValidator(config);
+        SchemaValidator validator = new SchemaValidator(config.schemaValidatorConfig());
 
         List<SchemaWarning> warnings = validator.validate(
                 List.of(book),
@@ -56,7 +56,7 @@ class SchemaValidatorTest {
                 new AssociationModel.ManyToOneAssoc("store", "Store", true, "store_id")));
 
         QuickGenConfig config = QuickGenConfig.builder().build();
-        SchemaValidator validator = new SchemaValidator(config);
+        SchemaValidator validator = new SchemaValidator(config.schemaValidatorConfig());
 
         List<SchemaWarning> warnings = validator.validate(
                 List.of(store, book),
@@ -77,7 +77,7 @@ class SchemaValidatorTest {
         ), Set.of("id"));
 
         QuickGenConfig config = QuickGenConfig.builder().build();
-        SchemaValidator validator = new SchemaValidator(config);
+        SchemaValidator validator = new SchemaValidator(config.schemaValidatorConfig());
 
         List<SchemaWarning> warnings = validator.validate(
                 List.of(user),
@@ -99,7 +99,7 @@ class SchemaValidatorTest {
         QuickGenConfig config = QuickGenConfig.builder()
                 .schemaValidatorConfig(b -> b.addNonFkIdColumns("custom_id"))
                 .build();
-        SchemaValidator validator = new SchemaValidator(config);
+        SchemaValidator validator = new SchemaValidator(config.schemaValidatorConfig());
 
         List<SchemaWarning> warnings = validator.validate(
                 List.of(order),
@@ -119,7 +119,7 @@ class SchemaValidatorTest {
         ), Set.of("id"));
 
         QuickGenConfig config = QuickGenConfig.builder().build();
-        SchemaValidator validator = new SchemaValidator(config);
+        SchemaValidator validator = new SchemaValidator(config.schemaValidatorConfig());
 
         List<SchemaWarning> warnings = validator.validate(
                 List.of(book),
@@ -140,7 +140,7 @@ class SchemaValidatorTest {
         ), Set.of("id"));
 
         QuickGenConfig config = QuickGenConfig.builder().build();
-        SchemaValidator validator = new SchemaValidator(config);
+        SchemaValidator validator = new SchemaValidator(config.schemaValidatorConfig());
 
         List<SchemaWarning> warnings = validator.validate(
                 List.of(book),
@@ -174,7 +174,7 @@ class SchemaValidatorTest {
                 new AssociationModel.ManyToOneAssoc("category3", "Category", true, "category3_id")));
 
         QuickGenConfig config = QuickGenConfig.builder().build();
-        SchemaValidator validator = new SchemaValidator(config);
+        SchemaValidator validator = new SchemaValidator(config.schemaValidatorConfig());
 
         List<SchemaWarning> warnings = validator.validate(
                 List.of(category, product),
@@ -199,7 +199,7 @@ class SchemaValidatorTest {
         ), Set.of("id"));
 
         QuickGenConfig config = QuickGenConfig.builder().build();
-        SchemaValidator validator = new SchemaValidator(config);
+        SchemaValidator validator = new SchemaValidator(config.schemaValidatorConfig());
 
         List<SchemaWarning> warnings = validator.validate(
                 List.of(category, product),
@@ -225,7 +225,7 @@ class SchemaValidatorTest {
         ), Set.of("id"));
 
         QuickGenConfig config = QuickGenConfig.builder().build();
-        SchemaValidator validator = new SchemaValidator(config);
+        SchemaValidator validator = new SchemaValidator(config.schemaValidatorConfig());
 
         List<SchemaWarning> warnings = validator.validate(
                 List.of(orderTbl),

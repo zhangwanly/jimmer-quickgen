@@ -1,6 +1,5 @@
 package io.github.zhangwanly.jimmer.quickgen.analysis;
 
-import io.github.zhangwanly.jimmer.quickgen.config.QuickGenConfig;
 import io.github.zhangwanly.jimmer.quickgen.config.SchemaValidatorConfig;
 import io.github.zhangwanly.jimmer.quickgen.db.ColumnModel;
 import io.github.zhangwanly.jimmer.quickgen.db.TableModel;
@@ -16,12 +15,12 @@ import java.util.*;
  * <p>Columns in the whitelist (e.g., {@code open_id}, {@code session_id}) are excluded
  * from validation as they are known non-FK patterns.</p>
  */
-public final class SchemaValidator {
+public final class SchemaValidator implements SchemaValidationStrategy {
 
     private final SchemaValidatorConfig config;
 
-    public SchemaValidator(QuickGenConfig genConfig) {
-        this.config = genConfig.schemaValidatorConfig();
+    public SchemaValidator(SchemaValidatorConfig config) {
+        this.config = config;
     }
 
     /**
@@ -33,6 +32,7 @@ public final class SchemaValidator {
      * @param tableNames      set of known table names (lowercase)
      * @return list of warnings for unresolved columns
      */
+    @Override
     public List<SchemaWarning> validate(
             List<TableModel> nonJoinTables,
             Set<String> baseColumnNames,

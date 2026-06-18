@@ -51,9 +51,32 @@ public final class ConventionAssociationResolver implements AssociationResolverS
         }
 
         // Phase 1: Pre-scan for digit suffix references ({table}{digit}_id pattern)
-        // Collect columns that match digit suffix patterns and group by (sourceTable, targetTable)
+        Map<String, Map<String, List<DigitSuffixColumn>>> digitSuffixGroups =
+                scanDigitSuffixGroups(nonJoinTables, baseColumnNames, tableNames, overrides);
+
+        // Phase 2: Generate associations for valid digit suffix groups (>=2 columns per target)
+        Set<String> digitSuffixColumnKeys = new HashSet<>();
+        generateDigitSuffixAssociations(digitSuffixGroups, result, digitSuffixColumnKeys);
+
+        // Phase 3: Existing exact-match logic (skip digit suffix columns already handled)
+        resolveExactMatchAssociations(
+                nonJoinTables, baseColumnNames, tableNames, selfRefPatterns, overrides,
+                result, digitSuffixColumnKeys);
+
+        return result;
+    }
+
+    /**
+     * Phase 1: Scan all tables for columns matching the digit suffix pattern ({table}{digit}_id).
+     * Groups matched columns by (sourceTable, targetTable).
+     */
+    private Map<String, Map<String, List<DigitSuffixColumn>>> scanDigitSuffixGroups(
+            List<TableModel> nonJoinTables,
+            Set<String> baseColumnNames,
+            Set<String> tableNames,
+            List<TableRefOverride> overrides) {
+
         Map<String, Map<String, List<DigitSuffixColumn>>> digitSuffixGroups = new LinkedHashMap<>();
-        Set<String> digitSuffixColumnKeys = new HashSet<>(); // "tableNameLower::columnName" keys to skip later
 
         for (TableModel table : nonJoinTables) {
             String tableNameLower = table.tableName().toLowerCase();
@@ -62,7 +85,7 @@ public final class ConventionAssociationResolver implements AssociationResolverS
             for (ColumnModel col : table.columns()) {
                 if (isBaseColumn(col.name(), baseColumnNames)) continue;
 
-                // Skip exact match columns (they are handled by existing logic)
+                // Skip exact match columns (they are handled by Phase 3)
                 Optional<String> exactRef = NamingConventions.extractReferenceTableName(col.name());
                 if (exactRef.isPresent()) {
                     String effectiveRef = NamingConventions.resolveTableRefOverride(
@@ -81,7 +104,19 @@ public final class ConventionAssociationResolver implements AssociationResolverS
             digitSuffixGroups.put(tableNameLower, groups);
         }
 
-        // Phase 2: Generate associations for valid digit suffix groups (>=2 columns per target)
+        return digitSuffixGroups;
+    }
+
+    /**
+     * Phase 2: Generate ManyToOne/OneToMany associations for digit suffix groups
+     * that have >=2 columns targeting the same table. Populates {@code handledColumnKeys}
+     * so Phase 3 can skip these columns.
+     */
+    private void generateDigitSuffixAssociations(
+            Map<String, Map<String, List<DigitSuffixColumn>>> digitSuffixGroups,
+            Map<String, List<AssociationModel>> result,
+            Set<String> handledColumnKeys) {
+
         for (var sourceEntry : digitSuffixGroups.entrySet()) {
             String sourceTable = sourceEntry.getKey();
 
@@ -107,7 +142,7 @@ public final class ConventionAssociationResolver implements AssociationResolverS
                                     propName, targetEntityName, col.nullable(), col.name()));
 
                     // Mark this column as handled
-                    digitSuffixColumnKeys.add(sourceTable + "::" + col.name());
+                    handledColumnKeys.add(sourceTable + "::" + col.name());
                 }
 
                 // Generate ONE inverse OneToMany on target table, mappedBy to the last (leaf) column
@@ -121,8 +156,21 @@ public final class ConventionAssociationResolver implements AssociationResolverS
                                 inversePropName, sourceEntityName, lastPropName));
             }
         }
+    }
 
-        // Phase 3: Existing exact-match logic (skip digit suffix columns already handled)
+    /**
+     * Phase 3: Resolve associations for standard exact-match FK columns ({table}_id pattern),
+     * skipping columns already handled by Phase 2.
+     */
+    private void resolveExactMatchAssociations(
+            List<TableModel> nonJoinTables,
+            Set<String> baseColumnNames,
+            Set<String> tableNames,
+            List<String> selfRefPatterns,
+            List<TableRefOverride> overrides,
+            Map<String, List<AssociationModel>> result,
+            Set<String> digitSuffixColumnKeys) {
+
         for (TableModel table : nonJoinTables) {
             String tableNameLower = table.tableName().toLowerCase();
             String entityName = NamingConventions.tableToEntityName(table.tableName());
@@ -195,8 +243,6 @@ public final class ConventionAssociationResolver implements AssociationResolverS
                 }
             }
         }
-
-        return result;
     }
 
     private record DigitSuffixColumn(ColumnModel column, int digit) {}
