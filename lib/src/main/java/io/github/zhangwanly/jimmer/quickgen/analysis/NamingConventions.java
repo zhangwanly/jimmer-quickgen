@@ -84,6 +84,19 @@ public final class NamingConventions {
     }
 
     /**
+     * Derive the inverse-side property name for a non-self-referencing OneToMany relationship.
+     * <p>Appends "List" to the lowerCamelCase entity name.
+     * Example: {@code book} → {@code bookList}, {@code productDetails} → {@code productDetailsList}</p>
+     *
+     * @param entityCamel the entity name in lowerCamelCase (e.g. "book", "productSku")
+     * @return the inverse-side collection property name (e.g. "bookList", "productSkuList")
+     */
+    public static String toListPropertyName(String entityCamel) {
+        if (entityCamel == null || entityCamel.isEmpty()) return entityCamel;
+        return entityCamel + "List";
+    }
+
+    /**
      * Pluralize an English name following common rules:
      * <ul>
      *   <li>Words ending in 'y' (preceded by consonant) → 'ies' (e.g., category → categories)</li>

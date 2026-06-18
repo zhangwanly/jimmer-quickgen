@@ -117,10 +117,26 @@ public final class SchemaAnalyzer {
 
         for (TableModel table : nonJoinTables) {
             String entityName = NamingConventions.tableToEntityName(table.tableName());
+            String key = table.tableName().toLowerCase();
+            List<AssociationModel> associations = associationMap.getOrDefault(key, List.of());
+
+            // Collect FK column names that are already represented by an owning-side association
+            Set<String> fkColumns = new HashSet<>();
+            for (AssociationModel assoc : associations) {
+                switch (assoc) {
+                    case AssociationModel.ManyToOneAssoc m -> fkColumns.add(m.joinColumnName());
+                    case AssociationModel.OneToOneOwningAssoc o -> fkColumns.add(o.joinColumnName());
+                    default -> {}
+                }
+            }
 
             List<PropertyModel> scalars = new ArrayList<>();
             for (ColumnModel col : table.columns()) {
                 if (baseColumnNames.stream().anyMatch(bc -> bc.equalsIgnoreCase(col.name()))) {
+                    continue;
+                }
+                // Skip FK columns that already have a corresponding association
+                if (fkColumns.contains(col.name())) {
                     continue;
                 }
                 boolean isPk = table.isPrimaryKeyColumn(col.name());
@@ -131,9 +147,6 @@ public final class SchemaAnalyzer {
                         col.nullable(),
                         isPk));
             }
-
-            String key = table.tableName().toLowerCase();
-            List<AssociationModel> associations = associationMap.getOrDefault(key, List.of());
 
             boolean extendsBaseEntity = baseResult.hasBaseEntity()
                     && table.columns().stream()

@@ -99,7 +99,7 @@ public final class ConventionAssociationResolver implements AssociationResolverS
                                         NamingConventions.selfRefInverseName(propName, entityCamel),
                                         entityName, propName));
                     } else {
-                        String inversePropName = NamingConventions.pluralize(
+                        String inversePropName = NamingConventions.toListPropertyName(
                                 NamingConventions.columnToPropertyName(tableNameLower));
                         addAssociation(result, refTable,
                                 new AssociationModel.OneToManyAssoc(

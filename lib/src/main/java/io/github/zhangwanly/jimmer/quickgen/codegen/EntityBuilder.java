@@ -14,6 +14,9 @@ import io.github.zhangwanly.jimmer.quickgen.db.ColumnModel;
 import io.github.zhangwanly.jimmer.quickgen.db.TableModel;
 
 import javax.lang.model.element.Modifier;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -26,6 +29,7 @@ public final class EntityBuilder {
 
     /**
      * Build an @Entity interface from a fully resolved EntityModel.
+     * Properties are emitted in table column definition order.
      */
     public static TypeSpec build(EntityModel entityModel, TableModel table, Set<String> baseColumnNames, QuickGenConfig config) {
         TypeSpec.Builder builder = TypeSpec.interfaceBuilder(entityModel.entityName())
@@ -37,12 +41,51 @@ public final class EntityBuilder {
             builder.addSuperinterface(baseEntityClass);
         }
 
-        for (PropertyModel prop : entityModel.scalars()) {
-            builder.addMethod(buildScalarMethod(prop, config));
+        // Build map from FK column name to owning-side association
+        Map<String, AssociationModel> owningAssocByJoinColumn = new LinkedHashMap<>();
+        Set<AssociationModel> processedAssocs = new HashSet<>();
+        for (AssociationModel assoc : entityModel.associations()) {
+            switch (assoc) {
+                case AssociationModel.ManyToOneAssoc m -> {
+                    owningAssocByJoinColumn.put(m.joinColumnName(), m);
+                    processedAssocs.add(m);
+                }
+                case AssociationModel.OneToOneOwningAssoc o -> {
+                    owningAssocByJoinColumn.put(o.joinColumnName(), o);
+                    processedAssocs.add(o);
+                }
+                default -> {}
+            }
         }
 
+        // Build map from scalar property name to PropertyModel
+        Map<String, PropertyModel> scalarByColumnName = new LinkedHashMap<>();
+        for (PropertyModel prop : entityModel.scalars()) {
+            scalarByColumnName.put(prop.columnName(), prop);
+        }
+
+        // Iterate table columns in definition order
+        for (ColumnModel col : table.columns()) {
+            if (baseColumnNames.stream().anyMatch(bc -> bc.equalsIgnoreCase(col.name()))) {
+                continue;
+            }
+
+            AssociationModel owningAssoc = owningAssocByJoinColumn.get(col.name());
+            if (owningAssoc != null) {
+                builder.addMethod(buildAssociationMethod(owningAssoc, config));
+            } else {
+                PropertyModel prop = scalarByColumnName.get(col.name());
+                if (prop != null) {
+                    builder.addMethod(buildScalarMethod(prop, config));
+                }
+            }
+        }
+
+        // Emit remaining associations (OneToMany, OneToOne inverse, ManyToMany)
         for (AssociationModel assoc : entityModel.associations()) {
-            builder.addMethod(buildAssociationMethod(assoc, config));
+            if (!processedAssocs.contains(assoc)) {
+                builder.addMethod(buildAssociationMethod(assoc, config));
+            }
         }
 
         return builder.build();

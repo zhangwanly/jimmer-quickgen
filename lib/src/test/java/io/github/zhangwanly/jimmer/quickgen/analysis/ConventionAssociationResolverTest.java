@@ -47,7 +47,7 @@ class ConventionAssociationResolverTest {
         // Store should have @OneToMany -> Book
         List<AssociationModel> storeAssocs = result.get("store");
         assertTrue(storeAssocs.stream().anyMatch(a -> a instanceof OneToManyAssoc o
-                && o.propertyName().equals("books")
+                && o.propertyName().equals("bookList")
                 && o.targetEntityName().equals("Book")
                 && o.mappedBy().equals("store")));
     }

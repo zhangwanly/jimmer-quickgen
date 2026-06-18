@@ -78,4 +78,11 @@ class NamingConventionsTest {
         assertEquals("treeNodes", NamingConventions.selfRefInverseName("someRef", "treeNode"));
         assertEquals("categories", NamingConventions.selfRefInverseName("unknown", "category"));
     }
+
+    @Test
+    void toListPropertyName() {
+        assertEquals("bookList", NamingConventions.toListPropertyName("book"));
+        assertEquals("productDetailsList", NamingConventions.toListPropertyName("productDetails"));
+        assertEquals("productSkuList", NamingConventions.toListPropertyName("productSku"));
+    }
 }

@@ -124,7 +124,7 @@ class FullPipelineIntegrationTest {
         assertTrue(store.contains("String website()"));
         assertTrue(store.contains("@OneToMany"));
         assertTrue(store.contains("mappedBy = \"store\""));
-        assertTrue(store.contains("List<Book> books()"));
+        assertTrue(store.contains("List<Book> bookList()"));
         // Should NOT contain base entity columns
         assertFalse(store.contains("long id()"), "id should be in BaseEntity, not Store");
         assertFalse(store.contains("createdAt()"), "createdAt should be in BaseEntity");
@@ -140,6 +140,8 @@ class FullPipelineIntegrationTest {
         assertTrue(book.contains("@ManyToOne"));
         assertTrue(book.contains("Store store()"));
         assertTrue(book.contains("foreignKeyType = ForeignKeyType.FAKE"));
+        // FK column store_id should NOT generate a separate scalar property
+        assertFalse(book.contains("Long storeId()"), "FK column should not generate scalar when association exists");
         // Book is the inverse side of ManyToMany (author is owning side alphabetically)
         assertTrue(book.contains("@ManyToMany"));
         assertTrue(book.contains("mappedBy = \"books\""));
@@ -171,6 +173,8 @@ class FullPipelineIntegrationTest {
         assertTrue(treeNode.contains("@OneToMany"));
         assertTrue(treeNode.contains("mappedBy = \"parent\""));
         assertTrue(treeNode.contains("List<TreeNode> children()"));
+        // FK column parent_id should NOT generate a separate scalar property
+        assertFalse(treeNode.contains("Long parentId()"), "FK column should not generate scalar when association exists");
 
         // Verify BookAuthorMapping was NOT generated
         String mapping = readGeneratedFile("BookAuthorMapping.java");
