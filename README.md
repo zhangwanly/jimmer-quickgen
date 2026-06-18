@@ -14,7 +14,7 @@
 - **命名约定推断关联**：通过 `{table}_id` 列名模式推断表间关系，无需真实外键约束
 - **多数据库方言**：支持 MySQL、PostgreSQL，自动检测并应用方言特定类型映射
 - **三层类型映射**：用户自定义 > 方言覆盖 > 默认映射 > String 兜底
-- **可插拔策略**：数据库内省、BaseEntity 提取、关联表检测、关联解析均为策略接口，可扩展替换
+- **可插拔策略**：数据库内省、BaseEntity 提取、关联表检测、关联解析、Schema 验证均为策略接口，可扩展替换
 
 ## 快速开始
 
@@ -54,6 +54,8 @@ QuickGenConfig config = QuickGenConfig.builder()
         .columnPatterns("id", "create_time", "update_time", "is_deleted"))
     .selfRefPatterns(List.of("parent_id", "root_id", "pid"))
     .joinTableConfig(new JoinTableConfig(2, false))
+    .schemaValidatorConfig(b -> b.addNonFkIdColumns("device_id", "tenant_id"))
+    .tableRefOverride("order_info", "user_id", "user_info")
     .build();
 
 QuickGen.generate(dataSource, config);
@@ -85,6 +87,8 @@ QuickGenConfig config = QuickGenConfig.builder()
 | `typeMappingRegistry` | `TypeMappingRegistry` | 默认映射 | SQL 类型到 Java 类型的映射 |
 | `selfRefPatterns` | `List<String>` | `["parent_id", "root_id"]` | 自关联列名模式 |
 | `joinTableConfig` | `JoinTableConfig` | 见下方 | 关联表检测配置 |
+| `schemaValidatorConfig` | `SchemaValidatorConfig` | 见下方 | Schema 验证配置（非外键 `_id` 列白名单） |
+| `tableRefOverride` | 见下方 | 空 | 存量库外键引用覆盖（可多次调用） |
 
 ### BaseEntityConfig
 
@@ -100,6 +104,45 @@ QuickGenConfig config = QuickGenConfig.builder()
 |--------|------|--------|------|
 | `requiredForeignKeyCount` | `int` | `2` | 判定为关联表所需的最小外键列数 |
 | `allowExtraNonFkColumns` | `boolean` | `false` | 关联表是否允许存在非外键列 |
+
+### SchemaValidatorConfig
+
+Schema 验证器检测以 `_id` 结尾但实际不是外键的列（如 `open_id`、`session_id`），对未解析的列生成警告报告。
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `nonFkIdColumns` | `List<String>` | `open_id`, `union_id`, `session_id`, `request_id`, `trace_id`, `app_id`, `correlation_id` | 非外键 `_id` 列白名单 |
+
+```java
+// 追加自定义列到白名单
+.schemaValidatorConfig(b -> b.addNonFkIdColumns("device_id", "tenant_id"))
+
+// 完全替换默认白名单
+.schemaValidatorConfig(b -> b.customNonFkIdColumns(List.of("open_id", "my_custom_id")))
+```
+
+### TableRefOverride
+
+存量库中列名不遵循严格的 `{table}_id` 约定时，需要手动指定外键引用关系。
+
+例如 `order_info.user_id` 实际引用 `user_info` 表而非 `user` 表，按默认约定会从 `user_id` 提取出引用表 `user`，导致关联错误。通过 `tableRefOverride` 三元组 `(tableName, columnName, actualRefTable)` 修正：
+
+```java
+QuickGenConfig config = QuickGenConfig.builder()
+    .basePackage("com.example.entity")
+    .tableRefOverride("order_info", "user_id", "user_info")
+    .tableRefOverride("coupon_range", "range_id", "coupon_range_type")
+    .tableRefOverride("promotion", "shop_id", "merchant_shop")
+    .build();
+```
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `tableName` | 拥有外键列的表名 | `"order_info"` |
+| `columnName` | 外键列名 | `"user_id"` |
+| `actualRefTable` | 实际引用的目标表名 | `"user_info"` |
+
+> 所有参数自动转为小写，无需手动处理大小写。可多次调用 `tableRefOverride()` 添加多个覆盖规则。
 
 ### TypeMappingRegistry 类型解析优先级
 
@@ -182,6 +225,11 @@ public interface Product extends BaseEntity {
 ./gradlew test
 ```
 
+### 发布
+```bash
+./gradlew clean :lib:test :lib:publishMavenPublicationToSonatypeRepository
+```
+
 ## 项目结构
 
 ```
@@ -189,12 +237,41 @@ jimmer-quickgen/
 └── lib/
     └── src/
         ├── main/java/io/github/zhangwanly/jimmer/quickgen
-        │   ├── QuickGen.java              # 入口门面
+        │   ├── QuickGen.java              # 入口门面，编排完整流水线
         │   ├── config/                    # 配置层
+        │   │   ├── QuickGenConfig         #   主配置（Builder 模式）
+        │   │   ├── TypeMappingRegistry    #   SQL→Java 三层类型映射
+        │   │   ├── BaseEntityConfig       #   BaseEntity 提取配置
+        │   │   ├── JoinTableConfig        #   关联表检测配置
+        │   │   └── SchemaValidatorConfig  #   非外键 _id 列白名单
         │   ├── db/                        # 数据库内省层
+        │   │   ├── DatabaseIntrospectionStrategy  # 策略接口
+        │   │   ├── JdbcMetadataIntrospector       # JDBC DatabaseMetaData 实现
+        │   │   ├── TableModel / ColumnModel       # 表/列数据记录
+        │   │   └── DatabaseIntrospector           # 外观类
         │   ├── analysis/                  # Schema 分析层
+        │   │   ├── SchemaAnalyzer                 # 分析流水线编排
+        │   │   ├── BaseEntityExtractionStrategy   # BaseEntity 提取策略
+        │   │   ├── JoinTableDetectionStrategy     # 关联表检测策略
+        │   │   ├── AssociationResolverStrategy    # 关联解析策略
+        │   │   ├── SchemaValidationStrategy       # Schema 验证策略
+        │   │   ├── ConventionAssociationResolver  # 基于命名约定的关联解析（3 阶段）
+        │   │   ├── NamingConventions              # snake_case ↔ CamelCase 工具
+        │   │   └── AssociationModel               # sealed interface + 6 种关联 record
         │   ├── codegen/                   # 代码生成层
-        │   ├── dialect/                   # 数据库方言
+        │   │   ├── JimmerCodeGenerator            # 编排分析→JavaFile 生成
+        │   │   ├── EntityBuilder                  # @Entity TypeSpec 构建
+        │   │   ├── BaseEntityBuilder              # @MappedSuperclass 构建
+        │   │   ├── AnnotationFactory              # Jimmer 注解集中工厂
+        │   │   └── PropertyMethodBuilder          # 标量属性方法构建
+        │   ├── dialect/                   # 数据库方言层
+        │   │   ├── Dialect                        # 方言接口（纯契约）
+        │   │   ├── DialectFactory                 # 方言检测工厂
+        │   │   ├── MysqlDialect / PostgresDialect # 方言实现
+        │   │   └── GenericDialect                 # 通用兜底方言
         │   └── output/                    # 文件输出层
+        │       ├── OutputWriter                   # JavaFile 文件 I/O
+        │       ├── SourcePostProcessor            # 源码后处理（注解压缩 + import 分组）
+        │       └── WarningReportWriter            # Schema 警告 Markdown 报告
         └── test/                          # 单元测试与集成测试
 ```
