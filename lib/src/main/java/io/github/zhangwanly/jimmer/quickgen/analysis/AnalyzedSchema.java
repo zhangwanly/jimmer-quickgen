@@ -16,6 +16,7 @@ import java.util.*;
  * @param entityModels      resolved entity models (excluding join tables)
  * @param joinTableNames    names of tables identified as join tables
  * @param tableMap          lowercase-keyed table lookup
+ * @param warnings          schema validation warnings (unresolved _id columns)
  */
 public record AnalyzedSchema(
         List<ColumnModel> baseColumns,
@@ -24,7 +25,8 @@ public record AnalyzedSchema(
         List<EntityModel> entityModels,
         Set<String> joinTableNames,
         Map<String, List<AssociationModel>> associationMap,
-        Map<String, TableModel> tableMap
+        Map<String, TableModel> tableMap,
+        List<SchemaWarning> warnings
 ) {
     public AnalyzedSchema {
         baseColumns = List.copyOf(baseColumns);
@@ -34,9 +36,14 @@ public record AnalyzedSchema(
         joinTableNames = Set.copyOf(joinTableNames);
         associationMap = Map.copyOf(associationMap);
         tableMap = Map.copyOf(tableMap);
+        warnings = List.copyOf(warnings);
     }
 
     public boolean hasBaseEntity() {
         return !baseColumns.isEmpty();
+    }
+
+    public boolean hasWarnings() {
+        return !warnings.isEmpty();
     }
 }

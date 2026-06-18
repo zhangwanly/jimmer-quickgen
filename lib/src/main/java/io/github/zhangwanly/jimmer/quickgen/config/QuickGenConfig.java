@@ -1,8 +1,10 @@
 package io.github.zhangwanly.jimmer.quickgen.config;
 
+import io.github.zhangwanly.jimmer.quickgen.analysis.TableRefOverride;
 import org.babyfish.jimmer.sql.GenerationType;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -18,6 +20,8 @@ public final class QuickGenConfig {
     private final TypeMappingRegistry typeMappingRegistry;
     private final List<String> selfRefPatterns;
     private final JoinTableConfig joinTableConfig;
+    private final SchemaValidatorConfig schemaValidatorConfig;
+    private final List<TableRefOverride> tableRefOverrides;
 
     private QuickGenConfig(Builder builder) {
         this.basePackage = builder.basePackage;
@@ -27,6 +31,8 @@ public final class QuickGenConfig {
         this.typeMappingRegistry = builder.typeMappingRegistry;
         this.selfRefPatterns = List.copyOf(builder.selfRefPatterns);
         this.joinTableConfig = builder.joinTableConfig;
+        this.schemaValidatorConfig = builder.schemaValidatorConfig;
+        this.tableRefOverrides = List.copyOf(builder.tableRefOverrides);
     }
 
     public String basePackage() { return basePackage; }
@@ -36,6 +42,8 @@ public final class QuickGenConfig {
     public TypeMappingRegistry typeMappingRegistry() { return typeMappingRegistry; }
     public List<String> selfRefPatterns() { return selfRefPatterns; }
     public JoinTableConfig joinTableConfig() { return joinTableConfig; }
+    public SchemaValidatorConfig schemaValidatorConfig() { return schemaValidatorConfig; }
+    public List<TableRefOverride> tableRefOverrides() { return tableRefOverrides; }
 
     public static Builder builder() {
         return new Builder();
@@ -49,6 +57,8 @@ public final class QuickGenConfig {
         private TypeMappingRegistry typeMappingRegistry = TypeMappingRegistry.defaults();
         private List<String> selfRefPatterns = List.of("parent_id", "root_id");
         private JoinTableConfig joinTableConfig = JoinTableConfig.defaults();
+        private SchemaValidatorConfig schemaValidatorConfig = SchemaValidatorConfig.defaults();
+        private final List<TableRefOverride> tableRefOverrides = new ArrayList<>();
 
         public Builder basePackage(String basePackage) {
             this.basePackage = basePackage;
@@ -89,6 +99,41 @@ public final class QuickGenConfig {
 
         public Builder joinTableConfig(JoinTableConfig joinTableConfig) {
             this.joinTableConfig = joinTableConfig;
+            return this;
+        }
+
+        public Builder schemaValidatorConfig(SchemaValidatorConfig schemaValidatorConfig) {
+            this.schemaValidatorConfig = schemaValidatorConfig;
+            return this;
+        }
+
+        public Builder schemaValidatorConfig(Consumer<SchemaValidatorConfig.Builder> block) {
+            SchemaValidatorConfig.Builder b = SchemaValidatorConfig.builder();
+            block.accept(b);
+            this.schemaValidatorConfig = b.build();
+            return this;
+        }
+
+        /**
+         * Add a table reference override for a legacy FK column.
+         * <p>Example: {@code tableRefOverride("order_info", "user_id", "user_info")}
+         * tells the resolver that {@code order_info.user_id} references {@code user_info} table.</p>
+         *
+         * @param tableName      the table owning the FK column
+         * @param columnName     the FK column name
+         * @param actualRefTable the actual referenced table name
+         */
+        public Builder tableRefOverride(String tableName, String columnName, String actualRefTable) {
+            this.tableRefOverrides.add(new TableRefOverride(tableName, columnName, actualRefTable));
+            return this;
+        }
+
+        /**
+         * Replace all table reference overrides with the given list.
+         */
+        public Builder tableRefOverrides(List<TableRefOverride> overrides) {
+            this.tableRefOverrides.clear();
+            this.tableRefOverrides.addAll(overrides);
             return this;
         }
 

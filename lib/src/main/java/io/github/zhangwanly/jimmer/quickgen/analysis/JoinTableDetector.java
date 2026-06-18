@@ -22,13 +22,19 @@ import java.util.*;
 public final class JoinTableDetector implements JoinTableDetectionStrategy {
 
     private final JoinTableConfig config;
+    private final List<TableRefOverride> overrides;
 
     public JoinTableDetector() {
-        this(JoinTableConfig.defaults());
+        this(JoinTableConfig.defaults(), List.of());
     }
 
     public JoinTableDetector(JoinTableConfig config) {
+        this(config, List.of());
+    }
+
+    public JoinTableDetector(JoinTableConfig config, List<TableRefOverride> overrides) {
         this.config = config;
+        this.overrides = List.copyOf(overrides);
     }
 
     @Override
@@ -49,11 +55,16 @@ public final class JoinTableDetector implements JoinTableDetectionStrategy {
 
         int fkRefCount = 0;
         int totalColumns = table.columns().size();
+        String tableNameLower = table.tableName().toLowerCase();
 
         for (ColumnModel col : table.columns()) {
             Optional<String> ref = NamingConventions.extractReferenceTableName(col.name());
-            if (ref.isPresent() && allTableNames.contains(ref.get())) {
-                fkRefCount++;
+            if (ref.isPresent()) {
+                String effectiveRef = NamingConventions.resolveTableRefOverride(
+                        tableNameLower, col.name().toLowerCase(), overrides).orElse(ref.get());
+                if (allTableNames.contains(effectiveRef)) {
+                    fkRefCount++;
+                }
             }
         }
 
@@ -66,10 +77,15 @@ public final class JoinTableDetector implements JoinTableDetectionStrategy {
     @Override
     public List<String> getReferencedTables(TableModel joinTable, Set<String> allTableNames) {
         List<String> refs = new ArrayList<>();
+        String tableNameLower = joinTable.tableName().toLowerCase();
         for (ColumnModel col : joinTable.columns()) {
             Optional<String> ref = NamingConventions.extractReferenceTableName(col.name());
-            if (ref.isPresent() && allTableNames.contains(ref.get())) {
-                refs.add(ref.get());
+            if (ref.isPresent()) {
+                String effectiveRef = NamingConventions.resolveTableRefOverride(
+                        tableNameLower, col.name().toLowerCase(), overrides).orElse(ref.get());
+                if (allTableNames.contains(effectiveRef)) {
+                    refs.add(effectiveRef);
+                }
             }
         }
         Collections.sort(refs);

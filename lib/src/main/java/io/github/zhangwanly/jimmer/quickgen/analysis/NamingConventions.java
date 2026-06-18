@@ -1,7 +1,9 @@
 package io.github.zhangwanly.jimmer.quickgen.analysis;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Utility class for naming convention conversions between database (lower_snake_case)
@@ -84,6 +86,29 @@ public final class NamingConventions {
     }
 
     /**
+     * Look up a table reference override for the given table and column.
+     * <p>This allows legacy databases with non-standard FK column naming to be
+     * correctly resolved. For example, {@code order_info.user_id} may actually
+     * reference {@code user_info} rather than {@code user}.</p>
+     *
+     * @param tableName  the table owning the FK column (lowercase)
+     * @param columnName the FK column name (lowercase)
+     * @param overrides  the configured overrides
+     * @return the actual referenced table name, or empty if no override matches
+     */
+    public static Optional<String> resolveTableRefOverride(
+            String tableName, String columnName, List<TableRefOverride> overrides) {
+        String tableLower = tableName.toLowerCase();
+        String colLower = columnName.toLowerCase();
+        for (TableRefOverride override : overrides) {
+            if (override.tableName().equals(tableLower) && override.columnName().equals(colLower)) {
+                return Optional.of(override.actualRefTable());
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Derive the inverse-side property name for a non-self-referencing OneToMany relationship.
      * <p>Appends "List" to the lowerCamelCase entity name.
      * Example: {@code book} → {@code bookList}, {@code productDetails} → {@code productDetailsList}</p>
@@ -94,6 +119,53 @@ public final class NamingConventions {
     public static String toListPropertyName(String entityCamel) {
         if (entityCamel == null || entityCamel.isEmpty()) return entityCamel;
         return entityCamel + "List";
+    }
+
+    /**
+     * Result of detecting a {@code {table}{digit}_id} column pattern.
+     *
+     * @param tableName the referenced table name (lowercase)
+     * @param digit     the numeric suffix (e.g. 1, 2, 3)
+     */
+    public record DigitSuffixRef(String tableName, int digit) {}
+
+    /**
+     * Detect if a column name follows the {@code {table}{digit}_id} pattern.
+     * <p>Examples:
+     * <ul>
+     *   <li>{@code category1_id} with tables containing "category" → {@code Optional.of(DigitSuffixRef("category", 1))}</li>
+     *   <li>{@code category12_id} with tables containing "category" → {@code Optional.of(DigitSuffixRef("category", 12))}</li>
+     *   <li>{@code category_id} (no digit) → {@code Optional.empty()}</li>
+     *   <li>{@code unknown1_id} with no "unknown" table → {@code Optional.empty()}</li>
+     * </ul>
+     *
+     * @param columnName the column name to inspect
+     * @param tableNames set of known table names (lowercase)
+     * @return the parsed reference, or empty if not a valid digit-suffix pattern
+     */
+    public static Optional<DigitSuffixRef> extractDigitSuffixRef(String columnName, Set<String> tableNames) {
+        String lower = columnName.toLowerCase();
+        if (!lower.endsWith("_id") || lower.length() <= 3) return Optional.empty();
+
+        String stripped = lower.substring(0, lower.length() - 3); // e.g. "category1"
+
+        // Scan backwards to find trailing digits
+        int i = stripped.length() - 1;
+        while (i >= 0 && Character.isDigit(stripped.charAt(i))) {
+            i--;
+        }
+
+        // Must have at least one digit
+        if (i >= stripped.length() - 1) return Optional.empty();
+
+        String prefix = stripped.substring(0, i + 1); // e.g. "category"
+        if (prefix.isEmpty()) return Optional.empty();
+
+        int digit = Integer.parseInt(stripped.substring(i + 1));
+
+        if (!tableNames.contains(prefix)) return Optional.empty();
+
+        return Optional.of(new DigitSuffixRef(prefix, digit));
     }
 
     /**

@@ -138,4 +138,47 @@ class JoinTableDetectorTest {
 
         assertFalse(strictDetector.isJoinTable(joinTable, allTableNames));
     }
+
+    @Test
+    void overrideResolvesJoinTableFkRefs() {
+        // user_role_mapping has user_id and role_id, referencing user_info and role_info
+        List<TableRefOverride> overrides = List.of(
+                new TableRefOverride("user_role_mapping", "user_id", "user_info"),
+                new TableRefOverride("user_role_mapping", "role_id", "role_info"));
+
+        JoinTableDetector detectorWithOverrides = new JoinTableDetector(
+                JoinTableConfig.defaults(), overrides);
+
+        TableModel joinTable = new TableModel("user_role_mapping", List.of(
+                new ColumnModel("user_id", "BIGINT", false, false, 0),
+                new ColumnModel("role_id", "BIGINT", false, false, 0)
+        ), Set.of("user_id", "role_id"));
+
+        Set<String> allTableNames = Set.of("user_info", "role_info", "user_role_mapping");
+
+        assertTrue(detectorWithOverrides.isJoinTable(joinTable, allTableNames),
+                "Join table with overridden FK refs should be detected");
+    }
+
+    @Test
+    void getReferencedTables_returnsOverriddenNames() {
+        List<TableRefOverride> overrides = List.of(
+                new TableRefOverride("user_role_mapping", "user_id", "user_info"),
+                new TableRefOverride("user_role_mapping", "role_id", "role_info"));
+
+        JoinTableDetector detectorWithOverrides = new JoinTableDetector(
+                JoinTableConfig.defaults(), overrides);
+
+        TableModel joinTable = new TableModel("user_role_mapping", List.of(
+                new ColumnModel("user_id", "BIGINT", false, false, 0),
+                new ColumnModel("role_id", "BIGINT", false, false, 0)
+        ), Set.of("user_id", "role_id"));
+
+        Set<String> allTableNames = Set.of("user_info", "role_info");
+
+        List<String> refs = detectorWithOverrides.getReferencedTables(joinTable, allTableNames);
+        assertEquals(2, refs.size());
+        assertEquals("role_info", refs.get(0)); // alphabetically first
+        assertEquals("user_info", refs.get(1));
+    }
 }

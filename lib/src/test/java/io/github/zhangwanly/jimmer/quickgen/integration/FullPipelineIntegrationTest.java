@@ -225,11 +225,152 @@ class FullPipelineIntegrationTest {
         assertTrue(baseEntity.contains("GenerationType.IDENTITY"));
     }
 
+    @Test
+    void multiLevelFk_generatesAssociations() throws Exception {
+        // Setup additional tables for multi-level FK test
+        String multiLevelDbUrl = "jdbc:h2:mem:multi_level_fk;DB_CLOSE_DELAY=-1";
+        try (Connection conn = DriverManager.getConnection(multiLevelDbUrl);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("CREATE TABLE category (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "name VARCHAR(100) NOT NULL)");
+
+            stmt.execute("CREATE TABLE product (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "name VARCHAR(100), " +
+                    "category1_id BIGINT, " +
+                    "category2_id BIGINT, " +
+                    "category3_id BIGINT)");
+
+            QuickGenConfig config = QuickGenConfig.builder()
+                    .basePackage("com.example.entity")
+                    .outputDir(outputDir)
+                    .build();
+
+            QuickGen.generate(TestDataSourceHelper.create(multiLevelDbUrl), config);
+        }
+
+        // Verify Product has 3 @ManyToOne associations
+        String product = readGeneratedFile("Product.java");
+        assertNotNull(product);
+        assertTrue(product.contains("@ManyToOne"), "Product should have @ManyToOne");
+        assertTrue(product.contains("Category category1()"), "Product should have category1()");
+        assertTrue(product.contains("Category category2()"), "Product should have category2()");
+        assertTrue(product.contains("Category category3()"), "Product should have category3()");
+
+        // Product should NOT have scalar properties for category FK columns
+        assertFalse(product.contains("Long category1Id()"), "category1_id should not generate scalar");
+        assertFalse(product.contains("Long category2Id()"), "category2_id should not generate scalar");
+        assertFalse(product.contains("Long category3Id()"), "category3_id should not generate scalar");
+
+        // Verify Category has @OneToMany mappedBy to category3 (leaf node)
+        String category = readGeneratedFile("Category.java");
+        assertNotNull(category);
+        assertTrue(category.contains("@OneToMany"), "Category should have @OneToMany");
+        assertTrue(category.contains("mappedBy = \"category3\""), "OneToMany should map to category3 (leaf node)");
+        assertTrue(category.contains("List<Product> productList()"), "Category should have productList()");
+    }
+
     private String readGeneratedFile(String fileName) throws IOException {
         Path file = outputDir.resolve("com/example/entity/" + fileName);
         if (Files.exists(file)) {
             return Files.readString(file);
         }
         return null;
+    }
+
+    @Test
+    void unresolvedIdColumn_generatesWarningsReport() throws Exception {
+        // Setup DB with an unresolved _id column (warehouse table doesn't exist)
+        String unresolvedDbUrl = "jdbc:h2:mem:unresolved_fk;DB_CLOSE_DELAY=-1";
+        try (Connection conn = DriverManager.getConnection(unresolvedDbUrl);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("CREATE TABLE simple_order (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "name VARCHAR(100), " +
+                    "warehouse_id BIGINT)"); // no "warehouse" table
+
+            QuickGenConfig config = QuickGenConfig.builder()
+                    .basePackage("com.example.entity")
+                    .outputDir(outputDir)
+                    .build();
+
+            QuickGen.generate(TestDataSourceHelper.create(unresolvedDbUrl), config);
+        }
+
+        // Verify schema-warnings.md was written
+        Path warningsFile = outputDir.resolve("schema-warnings.md");
+        assertTrue(Files.exists(warningsFile), "schema-warnings.md should be generated");
+
+        String content = Files.readString(warningsFile);
+        assertTrue(content.contains("# Schema 验证报告"), "Should have Markdown header");
+        assertTrue(content.contains("`warehouse_id`"), "Should mention unresolved column in code format");
+        assertTrue(content.contains("`warehouse`"), "Should mention extracted table reference in code format");
+        assertTrue(content.contains("引用表不存在"), "Should contain Chinese error description");
+    }
+
+    @Test
+    void resolvedSchema_noWarningsReport() throws Exception {
+        // Use the standard DB setup where all _id columns are resolved
+        QuickGenConfig config = QuickGenConfig.builder()
+                .basePackage("com.example.entity")
+                .outputDir(outputDir)
+                .build();
+
+        QuickGen.generate(createDataSource(), config);
+
+        // Verify schema-warnings.md was NOT written (all _id columns are resolved)
+        Path warningsFile = outputDir.resolve("schema-warnings.md");
+        assertFalse(Files.exists(warningsFile),
+                "schema-warnings.md should not be generated when all _id columns are resolved");
+    }
+
+    @Test
+    void tableRefOverride_generatesCorrectAssociations() throws Exception {
+        // Setup: user_info and order_info tables
+        // order_info.user_id should reference user_info (not "user" which doesn't exist)
+        String overrideDbUrl = "jdbc:h2:mem:table_ref_override;DB_CLOSE_DELAY=-1";
+        try (Connection conn = DriverManager.getConnection(overrideDbUrl);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("CREATE TABLE user_info (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "name VARCHAR(100) NOT NULL)");
+
+            stmt.execute("CREATE TABLE order_info (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "user_id BIGINT, " +
+                    "total DECIMAL(10,2) NOT NULL)");
+
+            QuickGenConfig config = QuickGenConfig.builder()
+                    .basePackage("com.example.entity")
+                    .outputDir(outputDir)
+                    .tableRefOverride("order_info", "user_id", "user_info")
+                    .build();
+
+            QuickGen.generate(TestDataSourceHelper.create(overrideDbUrl), config);
+        }
+
+        // Verify OrderInfo has @ManyToOne -> UserInfo
+        String orderInfo = readGeneratedFile("OrderInfo.java");
+        assertNotNull(orderInfo);
+        assertTrue(orderInfo.contains("@ManyToOne"), "OrderInfo should have @ManyToOne");
+        assertTrue(orderInfo.contains("UserInfo user()"), "OrderInfo should have user() property");
+        // FK column should NOT generate a scalar property
+        assertFalse(orderInfo.contains("Long userId()"), "user_id should not generate scalar when override resolves it");
+
+        // Verify UserInfo has @OneToMany -> OrderInfo
+        String userInfo = readGeneratedFile("UserInfo.java");
+        assertNotNull(userInfo);
+        assertTrue(userInfo.contains("@OneToMany"), "UserInfo should have @OneToMany");
+        assertTrue(userInfo.contains("mappedBy = \"user\""), "OneToMany should map to user property");
+        assertTrue(userInfo.contains("List<OrderInfo> orderInfoList()"), "UserInfo should have orderInfoList()");
+
+        // Verify NO schema-warnings.md (all FK columns resolved via override)
+        Path warningsFile = outputDir.resolve("schema-warnings.md");
+        assertFalse(Files.exists(warningsFile),
+                "schema-warnings.md should not be generated when tableRefOverride resolves all _id columns");
     }
 }

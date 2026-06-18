@@ -167,4 +167,202 @@ class ConventionAssociationResolverTest {
 
         assertFalse(manyToOne.nullable(), "Non-nullable FK should produce non-nullable ManyToOne");
     }
+
+    @Test
+    void detectsMultiLevelFkAssociation() {
+        TableModel category = new TableModel("category", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("name", "VARCHAR", false, false, 100)
+        ), Set.of("id"));
+
+        TableModel product = new TableModel("product", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("name", "VARCHAR", false, false, 100),
+                new ColumnModel("category1_id", "BIGINT", true, false, 0),
+                new ColumnModel("category2_id", "BIGINT", true, false, 0),
+                new ColumnModel("category3_id", "BIGINT", true, false, 0)
+        ), Set.of("id"));
+
+        Map<String, List<AssociationModel>> result = resolver.resolve(
+                List.of(category, product), Set.of(), defaultConfig());
+
+        // Product should have 3 @ManyToOne -> Category
+        List<AssociationModel> productAssocs = result.get("product");
+        assertEquals(3, productAssocs.stream().filter(a -> a instanceof ManyToOneAssoc).count());
+
+        assertTrue(productAssocs.stream().anyMatch(a -> a instanceof ManyToOneAssoc m
+                && m.propertyName().equals("category1")
+                && m.targetEntityName().equals("Category")
+                && m.joinColumnName().equals("category1_id")));
+
+        assertTrue(productAssocs.stream().anyMatch(a -> a instanceof ManyToOneAssoc m
+                && m.propertyName().equals("category2")
+                && m.targetEntityName().equals("Category")
+                && m.joinColumnName().equals("category2_id")));
+
+        assertTrue(productAssocs.stream().anyMatch(a -> a instanceof ManyToOneAssoc m
+                && m.propertyName().equals("category3")
+                && m.targetEntityName().equals("Category")
+                && m.joinColumnName().equals("category3_id")));
+
+        // Category should have 1 @OneToMany -> Product (mappedBy = "category3", the leaf node)
+        List<AssociationModel> categoryAssocs = result.get("category");
+        assertEquals(1, categoryAssocs.stream().filter(a -> a instanceof OneToManyAssoc).count());
+
+        assertTrue(categoryAssocs.stream().anyMatch(a -> a instanceof OneToManyAssoc o
+                && o.propertyName().equals("productList")
+                && o.targetEntityName().equals("Product")
+                && o.mappedBy().equals("category3")));
+    }
+
+    @Test
+    void singleDigitSuffixFk_noAssociation() {
+        TableModel category = new TableModel("category", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("name", "VARCHAR", false, false, 100)
+        ), Set.of("id"));
+
+        TableModel product = new TableModel("product", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("name", "VARCHAR", false, false, 100),
+                new ColumnModel("category1_id", "BIGINT", true, false, 0) // Only 1 digit suffix column
+        ), Set.of("id"));
+
+        Map<String, List<AssociationModel>> result = resolver.resolve(
+                List.of(category, product), Set.of(), defaultConfig());
+
+        // Product should have NO ManyToOne for category1_id (needs >=2 columns)
+        List<AssociationModel> productAssocs = result.get("product");
+        assertTrue(productAssocs.stream().noneMatch(a -> a instanceof ManyToOneAssoc));
+
+        // Category should have NO OneToMany
+        List<AssociationModel> categoryAssocs = result.get("category");
+        assertTrue(categoryAssocs.stream().noneMatch(a -> a instanceof OneToManyAssoc));
+    }
+
+    @Test
+    void overrideResolvesLegacyFkColumn() {
+        // order_info.user_id should reference user_info, not user
+        TableModel userInfo = new TableModel("user_info", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("name", "VARCHAR", false, false, 100)
+        ), Set.of("id"));
+
+        TableModel orderInfo = new TableModel("order_info", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("user_id", "BIGINT", true, false, 0),
+                new ColumnModel("total", "DECIMAL", false, false, 10)
+        ), Set.of("id"));
+
+        QuickGenConfig config = QuickGenConfig.builder()
+                .tableRefOverride("order_info", "user_id", "user_info")
+                .build();
+
+        Map<String, List<AssociationModel>> result = resolver.resolve(
+                List.of(userInfo, orderInfo), Set.of(), config);
+
+        // order_info should have @ManyToOne -> UserInfo
+        List<AssociationModel> orderAssocs = result.get("order_info");
+        assertTrue(orderAssocs.stream().anyMatch(a -> a instanceof ManyToOneAssoc m
+                && m.propertyName().equals("user")
+                && m.targetEntityName().equals("UserInfo")
+                && m.joinColumnName().equals("user_id")));
+
+        // user_info should have @OneToMany -> OrderInfo
+        List<AssociationModel> userAssocs = result.get("user_info");
+        assertTrue(userAssocs.stream().anyMatch(a -> a instanceof OneToManyAssoc o
+                && o.propertyName().equals("orderInfoList")
+                && o.targetEntityName().equals("OrderInfo")
+                && o.mappedBy().equals("user")));
+    }
+
+    @Test
+    void override_noMatchingTable_skipped() {
+        // Override points to user_info, but user_info table doesn't exist
+        TableModel orderInfo = new TableModel("order_info", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("user_id", "BIGINT", true, false, 0)
+        ), Set.of("id"));
+
+        QuickGenConfig config = QuickGenConfig.builder()
+                .tableRefOverride("order_info", "user_id", "user_info")
+                .build();
+
+        Map<String, List<AssociationModel>> result = resolver.resolve(
+                List.of(orderInfo), Set.of(), config);
+
+        // No association should be created
+        List<AssociationModel> orderAssocs = result.get("order_info");
+        assertTrue(orderAssocs.isEmpty(), "Override to nonexistent table should create no association");
+    }
+
+    @Test
+    void override_onlyAffectsSpecifiedTable() {
+        // order_info.user_id has override, audit_log.user_id does not
+        TableModel userInfo = new TableModel("user_info", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("name", "VARCHAR", false, false, 100)
+        ), Set.of("id"));
+
+        TableModel orderInfo = new TableModel("order_info", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("user_id", "BIGINT", true, false, 0)
+        ), Set.of("id"));
+
+        TableModel auditLog = new TableModel("audit_log", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("user_id", "BIGINT", true, false, 0)
+        ), Set.of("id"));
+
+        QuickGenConfig config = QuickGenConfig.builder()
+                .tableRefOverride("order_info", "user_id", "user_info")
+                .build();
+
+        Map<String, List<AssociationModel>> result = resolver.resolve(
+                List.of(userInfo, orderInfo, auditLog), Set.of(), config);
+
+        // order_info.user_id should be resolved
+        List<AssociationModel> orderAssocs = result.get("order_info");
+        assertTrue(orderAssocs.stream().anyMatch(a -> a instanceof ManyToOneAssoc m
+                && m.joinColumnName().equals("user_id")),
+                "order_info.user_id should be resolved via override");
+
+        // audit_log.user_id should NOT be resolved (no override)
+        List<AssociationModel> auditAssocs = result.get("audit_log");
+        assertTrue(auditAssocs.stream().noneMatch(a -> a instanceof ManyToOneAssoc),
+                "audit_log.user_id should not be resolved without override");
+    }
+
+    @Test
+    void overrideResolvesOneToOneWhenFkIsSolePk() {
+        TableModel userInfo = new TableModel("user_info", List.of(
+                new ColumnModel("id", "BIGINT", false, true, 0),
+                new ColumnModel("name", "VARCHAR", false, false, 100)
+        ), Set.of("id"));
+
+        TableModel userProfile = new TableModel("user_profile", List.of(
+                new ColumnModel("user_id", "BIGINT", false, false, 0),
+                new ColumnModel("bio", "VARCHAR", true, false, 500)
+        ), Set.of("user_id"));
+
+        QuickGenConfig config = QuickGenConfig.builder()
+                .tableRefOverride("user_profile", "user_id", "user_info")
+                .build();
+
+        Map<String, List<AssociationModel>> result = resolver.resolve(
+                List.of(userInfo, userProfile), Set.of(), config);
+
+        // userProfile should have @OneToOne owning -> UserInfo
+        List<AssociationModel> profileAssocs = result.get("user_profile");
+        assertTrue(profileAssocs.stream().anyMatch(a -> a instanceof OneToOneOwningAssoc o
+                && o.propertyName().equals("user")
+                && o.targetEntityName().equals("UserInfo")
+                && o.joinColumnName().equals("user_id")));
+
+        // user_info should have @OneToOne inverse -> UserProfile
+        List<AssociationModel> userAssocs = result.get("user_info");
+        assertTrue(userAssocs.stream().anyMatch(a -> a instanceof OneToOneInverseAssoc o
+                && o.targetEntityName().equals("UserProfile")
+                && o.mappedBy().equals("user")));
+    }
 }

@@ -10,7 +10,6 @@ import com.squareup.javapoet.JavaFile;
 
 import javax.sql.DataSource;
 import java.util.List;
-
 /**
  * Main facade / entry point for the Jimmer QuickGen reverse engineering process.
  *
@@ -47,12 +46,17 @@ public final class QuickGen {
 
         // Step 2: Generate code (full pipeline: BaseEntity + associations + ManyToMany)
         JimmerCodeGenerator generator = new JimmerCodeGenerator(config);
-        List<JavaFile> files = generator.generate(tables);
+        JimmerCodeGenerator.GenerationResult result = generator.generateFull(tables);
 
         // Step 3: Write to filesystem
         OutputWriter writer = new OutputWriter();
-        writer.write(files, config.outputDir());
+        writer.write(result.files(), config.outputDir());
 
-        return files;
+        // Step 4: Write schema validation warnings (if any)
+        if (result.schema().hasWarnings()) {
+            writer.writeWarnings(result.schema().warnings(), config.outputDir());
+        }
+
+        return result.files();
     }
 }

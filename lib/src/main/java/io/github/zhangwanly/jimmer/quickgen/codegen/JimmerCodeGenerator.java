@@ -32,8 +32,29 @@ public class JimmerCodeGenerator {
      * @return list of JavaFile objects ready to write
      */
     public List<JavaFile> generate(List<TableModel> tables) {
+        return generateFull(tables).files();
+    }
+
+    /**
+     * Run the full pipeline and return both generated files and the analyzed schema.
+     * Useful when callers need access to warnings or other analysis results.
+     *
+     * @param tables the list of table models from database introspection
+     * @return result containing both JavaFile objects and the AnalyzedSchema
+     */
+    public GenerationResult generateFull(List<TableModel> tables) {
         AnalyzedSchema schema = new SchemaAnalyzer(config).analyze(tables);
-        return buildFiles(schema);
+        List<JavaFile> files = buildFiles(schema);
+        return new GenerationResult(files, schema);
+    }
+
+    /**
+     * Result of a full code generation pass, including both files and analyzed schema.
+     */
+    public record GenerationResult(List<JavaFile> files, AnalyzedSchema schema) {
+        public GenerationResult {
+            files = List.copyOf(files);
+        }
     }
 
     private List<JavaFile> buildFiles(AnalyzedSchema schema) {

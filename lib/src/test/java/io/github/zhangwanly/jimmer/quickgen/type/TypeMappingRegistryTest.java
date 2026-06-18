@@ -156,4 +156,27 @@ class TypeMappingRegistryTest {
         assertFalse(registry.matchesBooleanPattern("order_num"));
         assertFalse(registry.matchesBooleanPattern("deleted"));
     }
+
+    @Test
+    void booleanDbType_nonMatchingColumn_degradesToInt() {
+        TypeMappingRegistry registry = TypeMappingRegistry.defaults();
+        // sex (BOOLEAN, nullable) → Integer (MySQL tinyint(1) reports as BOOLEAN)
+        assertEquals(TypeName.get(Integer.class), registry.resolve("sex", "BOOLEAN", true));
+        // status (BOOLEAN, not null) → int
+        assertEquals(TypeName.INT, registry.resolve("status", "BOOLEAN", false));
+        // BIT type also degrades
+        assertEquals(TypeName.get(Integer.class), registry.resolve("level", "BIT", true));
+        assertEquals(TypeName.INT, registry.resolve("priority", "BIT", false));
+    }
+
+    @Test
+    void booleanDbType_matchingColumn_stillBoolean() {
+        TypeMappingRegistry registry = TypeMappingRegistry.defaults();
+        // is_deleted (BOOLEAN, not null) → boolean
+        assertEquals(TypeName.BOOLEAN, registry.resolve("is_deleted", "BOOLEAN", false));
+        // is_enabled (BOOLEAN, nullable) → Boolean
+        assertEquals(TypeName.get(Boolean.class), registry.resolve("is_enabled", "BOOLEAN", true));
+        // is_deleted (BIT, not null) → boolean
+        assertEquals(TypeName.BOOLEAN, registry.resolve("is_deleted", "BIT", false));
+    }
 }

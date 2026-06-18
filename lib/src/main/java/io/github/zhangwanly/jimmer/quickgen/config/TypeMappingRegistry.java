@@ -185,6 +185,12 @@ public final class TypeMappingRegistry {
         if (matchesBooleanPattern(columnName)) {
             return nullable ? TypeName.get(Boolean.class) : TypeName.BOOLEAN;
         }
+        // For boolean DB types (BOOLEAN/BIT), if column name doesn't match boolean pattern,
+        // degrade to int. This handles MySQL's tinyint(1) which reports as BOOLEAN.
+        String upperType = dbTypeName.toUpperCase();
+        if (("BOOLEAN".equals(upperType) || "BIT".equals(upperType))) {
+            return nullable ? TypeName.get(Integer.class) : TypeName.INT;
+        }
         return resolve(dbTypeName, nullable);
     }
 

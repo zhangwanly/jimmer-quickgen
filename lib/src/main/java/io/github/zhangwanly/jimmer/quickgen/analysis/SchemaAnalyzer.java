@@ -34,7 +34,7 @@ public final class SchemaAnalyzer {
     public SchemaAnalyzer(QuickGenConfig config) {
         this(config,
              new BaseEntityExtractor(),
-             new JoinTableDetector(config.joinTableConfig()),
+             new JoinTableDetector(config.joinTableConfig(), config.tableRefOverrides()),
              new ConventionAssociationResolver()
         );
     }
@@ -96,6 +96,11 @@ public final class SchemaAnalyzer {
         List<EntityModel> entityModels = buildEntityModels(
                 nonJoinTables, baseResult, baseColumnNames, associationMap);
 
+        // Step 7: Validate schema for unresolved _id columns
+        SchemaValidator validator = new SchemaValidator(config);
+        List<SchemaWarning> warnings = validator.validate(
+                nonJoinTables, baseColumnNames, associationMap, allTableNames);
+
         return new AnalyzedSchema(
                 baseResult.baseColumns(),
                 basePkColumns,
@@ -103,7 +108,8 @@ public final class SchemaAnalyzer {
                 entityModels,
                 joinTableNames,
                 associationMap,
-                tableMap);
+                tableMap,
+                warnings);
     }
 
     private List<EntityModel> buildEntityModels(
