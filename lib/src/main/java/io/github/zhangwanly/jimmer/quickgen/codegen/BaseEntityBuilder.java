@@ -33,7 +33,7 @@ public final class BaseEntityBuilder {
 
         for (ColumnModel col : baseColumns) {
             boolean isPk = pkColumns.stream().anyMatch(pk -> pk.equalsIgnoreCase(col.name()));
-            MethodSpec method = PropertyMethodBuilder.build(col, isPk, config, false);
+            MethodSpec method = PropertyMethodBuilder.build(col, isPk, config);
             builder.addMethod(method);
         }
 

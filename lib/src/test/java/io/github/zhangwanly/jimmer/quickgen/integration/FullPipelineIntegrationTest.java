@@ -373,4 +373,111 @@ class FullPipelineIntegrationTest {
         assertFalse(Files.exists(warningsFile),
                 "schema-warnings.md should not be generated when tableRefOverride resolves all _id columns");
     }
+
+    @Test
+    void booleanIsPrefixColumn_hasExplicitColumnAnnotation() throws Exception {
+        // Setup table with is_deleted TINYINT column
+        String boolDbUrl = "jdbc:h2:mem:boolean_is_prefix;DB_CLOSE_DELAY=-1";
+        try (Connection conn = DriverManager.getConnection(boolDbUrl);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("CREATE TABLE article (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "title VARCHAR(100) NOT NULL, " +
+                    "is_deleted TINYINT NOT NULL, " +
+                    "is_published TINYINT)");
+
+            QuickGenConfig config = QuickGenConfig.builder()
+                    .basePackage("com.example.entity")
+                    .outputDir(outputDir)
+                    .build();
+
+            QuickGen.generate(TestDataSourceHelper.create(boolDbUrl), config);
+        }
+
+        // Verify Article has @Column on boolean isXxx properties
+        String article = readGeneratedFile("Article.java");
+        assertNotNull(article);
+        // is_deleted → boolean isDeleted() with @Column
+        assertTrue(article.contains("boolean isDeleted()"), "Should have boolean isDeleted()");
+        assertTrue(article.contains("@Column(name = \"is_deleted\")"),
+                "boolean isDeleted must have explicit @Column because Jimmer strips 'is' prefix");
+        // is_published (nullable) → @Nullable Boolean isPublished() with @Column
+        assertTrue(article.contains("Boolean isPublished()"), "Should have @Nullable Boolean isPublished()");
+        assertTrue(article.contains("@Column(name = \"is_published\")"),
+                "Boolean isPublished must have explicit @Column because Jimmer strips 'is' prefix");
+    }
+
+    @Test
+    void baseEntityBooleanIsColumn_hasExplicitColumnAnnotation() throws Exception {
+        // When is_deleted is configured as a BaseEntity column, it must also get @Column
+        String boolDbUrl = "jdbc:h2:mem:base_entity_bool;DB_CLOSE_DELAY=-1";
+        try (Connection conn = DriverManager.getConnection(boolDbUrl);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("CREATE TABLE page (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "title VARCHAR(100) NOT NULL, " +
+                    "is_deleted TINYINT NOT NULL)");
+
+            QuickGenConfig config = QuickGenConfig.builder()
+                    .basePackage("com.example.entity")
+                    .outputDir(outputDir)
+                    .baseEntityConfig(b -> b
+                            .columnPatterns("id", "is_deleted"))
+                    .build();
+
+            QuickGen.generate(TestDataSourceHelper.create(boolDbUrl), config);
+        }
+
+        // Verify BaseEntity has @Column on isDeleted
+        String baseEntity = readGeneratedFile("BaseEntity.java");
+        assertNotNull(baseEntity);
+        assertTrue(baseEntity.contains("boolean isDeleted()"), "BaseEntity should have boolean isDeleted()");
+        assertTrue(baseEntity.contains("@Column(name = \"is_deleted\")"),
+                "BaseEntity boolean isDeleted must have explicit @Column because Jimmer strips 'is' prefix");
+
+        // Verify Page entity does NOT have isDeleted (it's in BaseEntity)
+        String page = readGeneratedFile("Page.java");
+        assertNotNull(page);
+        assertFalse(page.contains("isDeleted"), "isDeleted should be in BaseEntity, not Page");
+    }
+
+    @Test
+    void accessorPrefixColumn_hasExplicitColumnAnnotation() throws Exception {
+        // Setup table with get_type / get_time columns (accessor prefix ambiguity)
+        String dbUrl = "jdbc:h2:mem:accessor_prefix;DB_CLOSE_DELAY=-1";
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("CREATE TABLE coupon_user (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "get_type TINYINT NOT NULL, " +
+                    "get_time DATETIME, " +
+                    "set_name VARCHAR(50))");
+
+            QuickGenConfig config = QuickGenConfig.builder()
+                    .basePackage("com.example.entity")
+                    .outputDir(outputDir)
+                    .build();
+
+            QuickGen.generate(TestDataSourceHelper.create(dbUrl), config);
+        }
+
+        // Verify CouponUser has @Column on get/set-prefixed properties
+        String couponUser = readGeneratedFile("CouponUser.java");
+        assertNotNull(couponUser);
+        // get_type → getType() with @Column("get_type")
+        assertTrue(couponUser.contains("getType()"), "Should have getType()");
+        assertTrue(couponUser.contains("@Column(name = \"get_type\")"),
+                "getType must have explicit @Column because Jimmer strips 'get' prefix");
+        // get_time → getTime() with @Column("get_time")
+        assertTrue(couponUser.contains("getTime()"), "Should have getTime()");
+        assertTrue(couponUser.contains("@Column(name = \"get_time\")"),
+                "getTime must have explicit @Column because Jimmer strips 'get' prefix");
+        // set_name → setName() with @Column("set_name")
+        assertTrue(couponUser.contains("setName()"), "Should have setName()");
+        assertTrue(couponUser.contains("@Column(name = \"set_name\")"),
+                "setName must have explicit @Column because Jimmer strips 'set' prefix");
+    }
 }

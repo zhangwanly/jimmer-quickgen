@@ -203,6 +203,8 @@ public interface Product extends BaseEntity {
 
 > 所有 `@JoinColumn` 使用 `foreignKeyType = ForeignKeyType.FAKE`，表明关联关系基于命名约定推断，而非真实数据库外键约束。FAKE 外键要求属性始终标记 `@Nullable`；当数据库列 NOT NULL 时，通过 `@ManyToOne(inputNotNull = true)` 在保存时强制非空校验。
 
+> 当属性名与 JavaBean 规范存在歧义时，会自动添加 `@Column` 显式指定列名。典型场景：① boolean `is` 前缀（如 `is_deleted` → `boolean isDeleted()`，Jimmer 会剥离 `is` 推断为 `deleted`）；② `get`/`set` 前缀（如 `get_type` → `getType()`，Jimmer 会剥离 `get` 推断为 `type`）；③ 连续大写缩写词（如 `serverURL`，Jimmer 可能推断为 `server_u_r_l`）。
+
 ### 关联表处理
 
 被识别为关联表的表（如 `user_role_mapping`）不会生成实体文件，而是在关联的两个实体上分别生成 `@ManyToMany` 方法。

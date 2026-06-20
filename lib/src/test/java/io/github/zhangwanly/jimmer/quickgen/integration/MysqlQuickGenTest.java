@@ -23,7 +23,7 @@ public class MysqlQuickGenTest {
         }
 
         MysqlDataSource dataSource = new MysqlDataSource();
-        dataSource.setURL("jdbc:mysql://" + host + ":" + port + "/" + db + "?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8");
+        dataSource.setURL("jdbc:mysql://" + host + ":" + port + "/" + db + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8");
         dataSource.setUser(user);
         dataSource.setPassword(password);
 

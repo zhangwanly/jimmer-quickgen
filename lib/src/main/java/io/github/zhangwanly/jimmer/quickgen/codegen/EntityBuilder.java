@@ -104,7 +104,7 @@ public final class EntityBuilder {
 
         for (ColumnModel column : table.columns()) {
             boolean isPk = table.isPrimaryKeyColumn(column.name());
-            MethodSpec method = PropertyMethodBuilder.build(column, isPk, config, true);
+            MethodSpec method = PropertyMethodBuilder.build(column, isPk, config);
             builder.addMethod(method);
         }
 
@@ -114,7 +114,7 @@ public final class EntityBuilder {
     private static MethodSpec buildScalarMethod(PropertyModel prop, QuickGenConfig config) {
         return PropertyMethodBuilder.buildScalar(
                 prop.name(), prop.columnName(), prop.javaType(),
-                prop.nullable(), prop.isPrimaryKey(), config, true);
+                prop.nullable(), prop.isPrimaryKey(), config);
     }
 
     private static MethodSpec buildAssociationMethod(AssociationModel assoc, QuickGenConfig config) {

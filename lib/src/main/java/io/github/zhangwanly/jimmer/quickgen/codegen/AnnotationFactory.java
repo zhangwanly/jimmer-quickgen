@@ -51,13 +51,13 @@ public final class AnnotationFactory {
 
     public static AnnotationSpec column(String name) {
         return AnnotationSpec.builder(COLUMN)
-                .addMember("name", "$S", name)
+                .addMember("name", "$S", name.toLowerCase())
                 .build();
     }
 
     public static AnnotationSpec table(String name, String schema) {
         AnnotationSpec.Builder builder = AnnotationSpec.builder(TABLE)
-                .addMember("name", "$S", name);
+                .addMember("name", "$S", name.toLowerCase());
         if (schema != null && !schema.isBlank()) {
             builder.addMember("schema", "$S", schema);
         }
@@ -75,7 +75,7 @@ public final class AnnotationFactory {
         }
         annotations.add(manyToOneBuilder.build());
         annotations.add(AnnotationSpec.builder(JOIN_COLUMN)
-                .addMember("name", "$S", joinColumnName)
+                .addMember("name", "$S", joinColumnName.toLowerCase())
                 .addMember("foreignKeyType", "$T.FAKE", FOREIGN_KEY_TYPE)
                 .build());
         return annotations;
@@ -100,7 +100,7 @@ public final class AnnotationFactory {
         }
         annotations.add(oneToOneBuilder.build());
         annotations.add(AnnotationSpec.builder(JOIN_COLUMN)
-                .addMember("name", "$S", joinColumnName)
+                .addMember("name", "$S", joinColumnName.toLowerCase())
                 .addMember("foreignKeyType", "$T.FAKE", FOREIGN_KEY_TYPE)
                 .build());
         return annotations;
@@ -123,9 +123,9 @@ public final class AnnotationFactory {
         List<AnnotationSpec> annotations = new ArrayList<>();
         annotations.add(AnnotationSpec.builder(MANY_TO_MANY).build());
         annotations.add(AnnotationSpec.builder(JOIN_TABLE)
-                .addMember("name", "$S", joinTableName)
-                .addMember("joinColumnName", "$S", joinColumnName)
-                .addMember("inverseJoinColumnName", "$S", inverseJoinColumnName)
+                .addMember("name", "$S", joinTableName.toLowerCase())
+                .addMember("joinColumnName", "$S", joinColumnName.toLowerCase())
+                .addMember("inverseJoinColumnName", "$S", inverseJoinColumnName.toLowerCase())
                 .build());
         return annotations;
     }
