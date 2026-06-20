@@ -44,20 +44,25 @@ class AnnotationFactoryTest {
     }
 
     @Test
-    void manyToOne_hasForeignKeyTypeFake() {
+    void manyToOne_nullable_hasNullableAnnotation() {
         List<AnnotationSpec> annotations = AnnotationFactory.manyToOne("store_id", true);
         assertEquals(3, annotations.size()); // @Nullable, @ManyToOne, @JoinColumn
-
-        String joinColumn = annotations.get(2).toString();
-        assertTrue(joinColumn.contains("JoinColumn"));
-        assertTrue(joinColumn.contains("store_id"));
-        assertTrue(joinColumn.contains("FAKE"), "@JoinColumn must have foreignKeyType = FAKE");
+        // @Nullable must be present
+        assertTrue(annotations.get(0).toString().contains("Nullable"));
+        // @ManyToOne should NOT have inputNotNull
+        String manyToOne = annotations.get(1).toString();
+        assertFalse(manyToOne.contains("inputNotNull"), "Nullable FK should not have inputNotNull");
     }
 
     @Test
-    void manyToOne_notNullable_noNullableAnnotation() {
+    void manyToOne_notNullable_hasInputNotNull() {
         List<AnnotationSpec> annotations = AnnotationFactory.manyToOne("store_id", false);
-        assertEquals(2, annotations.size()); // @ManyToOne, @JoinColumn (no @Nullable)
+        assertEquals(3, annotations.size()); // @Nullable (always for FAKE FK), @ManyToOne(inputNotNull), @JoinColumn
+        // @Nullable must still be present (FAKE FK requirement)
+        assertTrue(annotations.get(0).toString().contains("Nullable"));
+        // @ManyToOne must have inputNotNull = true
+        String manyToOne = annotations.get(1).toString();
+        assertTrue(manyToOne.contains("inputNotNull"), "Non-nullable FK must have inputNotNull = true");
     }
 
     @Test
@@ -70,12 +75,20 @@ class AnnotationFactoryTest {
 
     @Test
     void oneToOneOwning_hasJoinColumnAndFakeFk() {
-        List<AnnotationSpec> annotations = AnnotationFactory.oneToOneOwning("user_id", false);
-        assertEquals(2, annotations.size()); // @OneToOne, @JoinColumn
+        List<AnnotationSpec> annotations = AnnotationFactory.oneToOneOwning("user_id", true);
+        assertEquals(3, annotations.size()); // @Nullable, @OneToOne, @JoinColumn
 
-        String joinColumn = annotations.get(1).toString();
+        String joinColumn = annotations.get(2).toString();
         assertTrue(joinColumn.contains("user_id"));
         assertTrue(joinColumn.contains("FAKE"));
+    }
+
+    @Test
+    void oneToOneOwning_notNullable_hasInputNotNull() {
+        List<AnnotationSpec> annotations = AnnotationFactory.oneToOneOwning("user_id", false);
+        assertEquals(3, annotations.size()); // @Nullable (always for FAKE FK), @OneToOne(inputNotNull), @JoinColumn
+        assertTrue(annotations.get(0).toString().contains("Nullable"));
+        assertTrue(annotations.get(1).toString().contains("inputNotNull"));
     }
 
     @Test

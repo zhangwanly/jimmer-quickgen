@@ -66,10 +66,14 @@ public final class AnnotationFactory {
 
     public static List<AnnotationSpec> manyToOne(String joinColumnName, boolean nullable) {
         List<AnnotationSpec> annotations = new ArrayList<>();
-        if (nullable) {
-            annotations.add(nullable());
+        // FAKE foreign key requires the property to always be @Nullable;
+        // use inputNotNull=true to enforce non-null at save time when DB column is NOT NULL.
+        annotations.add(nullable());
+        AnnotationSpec.Builder manyToOneBuilder = AnnotationSpec.builder(MANY_TO_ONE);
+        if (!nullable) {
+            manyToOneBuilder.addMember("inputNotNull", "$L", true);
         }
-        annotations.add(AnnotationSpec.builder(MANY_TO_ONE).build());
+        annotations.add(manyToOneBuilder.build());
         annotations.add(AnnotationSpec.builder(JOIN_COLUMN)
                 .addMember("name", "$S", joinColumnName)
                 .addMember("foreignKeyType", "$T.FAKE", FOREIGN_KEY_TYPE)
@@ -87,10 +91,14 @@ public final class AnnotationFactory {
 
     public static List<AnnotationSpec> oneToOneOwning(String joinColumnName, boolean nullable) {
         List<AnnotationSpec> annotations = new ArrayList<>();
-        if (nullable) {
-            annotations.add(nullable());
+        // FAKE foreign key requires the property to always be @Nullable;
+        // use inputNotNull=true to enforce non-null at save time when DB column is NOT NULL.
+        annotations.add(nullable());
+        AnnotationSpec.Builder oneToOneBuilder = AnnotationSpec.builder(ONE_TO_ONE);
+        if (!nullable) {
+            oneToOneBuilder.addMember("inputNotNull", "$L", true);
         }
-        annotations.add(AnnotationSpec.builder(ONE_TO_ONE).build());
+        annotations.add(oneToOneBuilder.build());
         annotations.add(AnnotationSpec.builder(JOIN_COLUMN)
                 .addMember("name", "$S", joinColumnName)
                 .addMember("foreignKeyType", "$T.FAKE", FOREIGN_KEY_TYPE)

@@ -191,6 +191,7 @@ public interface Product extends BaseEntity {
     @Nullable
     String description();
 
+    @Nullable
     @ManyToOne
     @JoinColumn(name = "category_id", foreignKeyType = ForeignKeyType.FAKE)
     Category category();
@@ -200,7 +201,7 @@ public interface Product extends BaseEntity {
 }
 ```
 
-> 所有 `@JoinColumn` 使用 `foreignKeyType = ForeignKeyType.FAKE`，表明关联关系基于命名约定推断，而非真实数据库外键约束。
+> 所有 `@JoinColumn` 使用 `foreignKeyType = ForeignKeyType.FAKE`，表明关联关系基于命名约定推断，而非真实数据库外键约束。FAKE 外键要求属性始终标记 `@Nullable`；当数据库列 NOT NULL 时，通过 `@ManyToOne(inputNotNull = true)` 在保存时强制非空校验。
 
 ### 关联表处理
 
